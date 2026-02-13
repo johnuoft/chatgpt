@@ -560,8 +560,13 @@ async def generate_campaign(
     5. Sends briefs to talent
     6. Notifies client via Slack that campaign is being assembled
     """
-    # Step 1-2: AI analysis
-    strategy = await ai_analyze_business(request.url, request.goals)
+   # Step 1-2: AI analysis
+    try:
+        strategy = await ai_analyze_business(request.url, request.goals)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"AI analysis failed: {str(e)}")
 
     # Find or create client
     client = db.query(Client).filter(Client.website_url == request.url).first()
