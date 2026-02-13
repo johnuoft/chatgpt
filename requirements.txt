@@ -1,0 +1,18 @@
+# GrowthTeam Backend Dependencies
+fastapi==0.115.0
+uvicorn==0.30.0
+sqlalchemy==2.0.35
+pydantic==2.9.0
+httpx==0.27.0
+python-multipart==0.0.9
+
+# For production, add:
+# psycopg2-binary==2.9.9      # PostgreSQL driver (replace SQLite)
+# alembic==1.13.0              # Database migrations
+# celery==5.4.0                # Background task queue (replace FastAPI BackgroundTasks)
+# redis==5.0.0                 # Celery broker + caching
+# slack-sdk==3.31.0            # Official Slack SDK
+# resend==2.0.0                # Transactional email
+# stripe==10.0.0               # Payment processing
+# sentry-sdk==2.13.0           # Error monitoring
+# boto3==1.35.0                # AWS S3 for file storage

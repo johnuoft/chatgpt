@@ -1,0 +1,11 @@
+name,email,primary_role,channels,skills,hourly_rate,per_deliverable_rate,rate_notes,portfolio_url,availability_hours_per_week,timezone,preferred_contact
+"Jane Smith",jane@example.com,"UGC Creator","TikTok,Instagram","short-form video,storytelling,trend analysis",0,65,"$50-80/video",https://janesmith.myportfolio.com,15,EST,email
+"Alex Chen",alex@example.com,"Video Editor","TikTok,YouTube,Instagram","video editing,motion graphics,color grading,caption design",45,0,"$45/hr",https://alexchen.com/work,20,PST,email
+"Maria Rodriguez",maria@example.com,"UGC Creator","Instagram,TikTok","lifestyle content,product demos,unboxing",0,75,"$60-90/video",https://instagram.com/mariacreates,10,CST,email
+"Tyler Brooks",tyler@example.com,"Media Buyer","Paid Social","Meta ads,TikTok ads,Google ads,analytics,A/B testing",75,0,"$75/hr",https://tyler-marketing.com,25,EST,slack
+"Priya Patel",priya@example.com,"SEO Content Writer","SEO","SEO writing,keyword research,long-form content,technical writing",0,150,"$0.15-0.25/word or $100-200/article",https://priyawrites.com,20,IST,email
+"Jordan Kim",jordan@example.com,"LinkedIn Content Strategist","LinkedIn","B2B marketing,thought leadership,ghostwriting,community building",60,0,"$60/hr or $3K/month retainer",https://linkedin.com/in/jordankim,15,PST,email
+"Sam Washington",sam@example.com,"Email Marketing Specialist","Email","email automation,copywriting,segmentation,Klaviyo,Mailchimp",55,0,"$55/hr",https://samwashington.com,20,EST,email
+"Lena Volkov",lena@example.com,"YouTube Strategist","YouTube","YouTube SEO,thumbnails,scripting,audience growth",65,0,"$65/hr or $4K/month",https://youtube.com/@lenavolkov,15,CET,email
+"Chris Okafor",chris@example.com,"Ad Creative Designer","Paid Social,Instagram","ad creative,graphic design,Figma,video ads,carousel ads",50,35,"$50/hr or $35/creative",https://dribbble.com/chrisokafor,20,WAT,email
+"Emma Liu",emma@example.com,"Community Manager","Instagram,TikTok","community engagement,DM management,comment strategy,brand voice",40,0,"$40/hr",https://emmaliu.com,25,AEST,slack
