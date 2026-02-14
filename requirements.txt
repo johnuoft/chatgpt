@@ -1,4 +1,4 @@
-# GrowthTeam Backend Dependencies
+# GrowthTeam Backend Dependencies i
 fastapi==0.115.0
 uvicorn==0.30.0
 sqlalchemy==2.0.35
