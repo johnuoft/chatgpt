@@ -1,5 +1,5 @@
 """
-Fleetwork Backend v0.5.0 — AI-Managed Marketing Agency
+Fleetwork Backend v0.5.1 — AI-Managed Marketing Agency
 ========================================================
 Full autonomous AI PM with:
 - 3-tier decision framework (handle / inform / escalate)
@@ -10,6 +10,8 @@ Full autonomous AI PM with:
 - Talent leaderboard + performance tracking
 - Auto-generated weekly client reports
 - Webhook events for frontend real-time updates
+
+Fix: renamed 'metadata' to 'event_metadata' (SQLAlchemy reserved word)
 """
 
 import os
@@ -18,7 +20,6 @@ import re
 import asyncio
 from datetime import datetime, timedelta
 from typing import Optional
-from enum import Enum
 
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -192,9 +193,9 @@ class ActivityEvent(Base):
     task_id = Column(Integer, nullable=True)
     talent_id = Column(Integer, nullable=True)
     client_id = Column(Integer, nullable=True)
-    event_type = Column(String(50), nullable=False)  # task_created, task_assigned, brief_sent, deliverable_submitted, review_passed, revision_requested, approved, payment_sent, talent_joined, escalation
+    event_type = Column(String(50), nullable=False)
     description = Column(Text, nullable=False)
-    metadata = Column(JSON, nullable=True)
+    event_metadata = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -205,7 +206,7 @@ Base.metadata.create_all(bind=engine)
 # FASTAPI APP
 # ══════════════════════════════════════════════
 
-app = FastAPI(title="Fleetwork API", description="AI-managed marketing agency", version="0.5.0")
+app = FastAPI(title="Fleetwork API", description="AI-managed marketing agency", version="0.5.1")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 
@@ -316,8 +317,8 @@ def log_msg(db, direction, rtype, rid, channel, body, subject=None, task_id=None
     db.add(m); db.commit(); return m
 
 
-def log_activity(db, event_type, description, campaign_id=None, task_id=None, talent_id=None, client_id=None, metadata=None):
-    e = ActivityEvent(campaign_id=campaign_id, task_id=task_id, talent_id=talent_id, client_id=client_id, event_type=event_type, description=description, metadata=metadata)
+def log_activity(db, event_type, description, campaign_id=None, task_id=None, talent_id=None, client_id=None, event_metadata=None):
+    e = ActivityEvent(campaign_id=campaign_id, task_id=task_id, talent_id=talent_id, client_id=client_id, event_type=event_type, description=description, event_metadata=event_metadata)
     db.add(e); db.commit(); return e
 
 
@@ -516,7 +517,6 @@ def get_context(db, slack_user_id=None, client_id=None, user_type=None, user_id=
     """Build database context for the AI PM."""
     ctx = {"campaigns": [], "user": None}
 
-    # Identify user
     client = None
     if slack_user_id:
         client = db.query(Client).filter(Client.slack_user_id == slack_user_id).first()
@@ -531,6 +531,7 @@ def get_context(db, slack_user_id=None, client_id=None, user_type=None, user_id=
                         cl = db.query(Client).filter(Client.id == c.client_id).first() if c else None
                         ctx["campaigns"].append({"task_id": t.id, "title": t.title, "status": t.status, "channel": t.channel, "due_date": str(t.due_date) if t.due_date else None, "campaign_id": t.campaign_id, "campaign_name": c.name if c else None, "client_name": cl.business_name if cl else None, "client_id": cl.id if cl else None, "brand_context": cl.business_analysis.get("business_summary", "") if cl and cl.business_analysis else "", "target_audience": cl.target_audience if cl else ""})
                 return ctx
+
     if client_id:
         client = db.query(Client).filter(Client.id == client_id).first()
     if user_type == "talent" and user_id:
@@ -544,6 +545,7 @@ def get_context(db, slack_user_id=None, client_id=None, user_type=None, user_id=
                     cl = db.query(Client).filter(Client.id == c.client_id).first() if c else None
                     ctx["campaigns"].append({"task_id": t.id, "title": t.title, "status": t.status, "channel": t.channel, "description": t.description, "due_date": str(t.due_date) if t.due_date else None, "client_name": cl.business_name if cl else None, "client_id": cl.id if cl else None, "brand_context": cl.business_analysis.get("business_summary", "") if cl and cl.business_analysis else "", "target_audience": cl.target_audience if cl else ""})
             return ctx
+
     if not client:
         for c in db.query(Campaign).order_by(Campaign.created_at.desc()).limit(5).all():
             tasks = db.query(Task).filter(Task.campaign_id == c.id).all()
@@ -582,7 +584,11 @@ async def daily_standup():
             client = db.query(Client).filter(Client.id == campaign.client_id).first() if campaign else None
 
             if days <= 2:
-                await send_slack(talent.slack_user_id, f"Hey {talent.name}! Quick reminder — *{task.title}* was due {days} day{'s' if days != 1 else ''} ago. How's it going?") if talent.slack_user_id else await send_email(talent.email, f"Reminder: {task.title}", _wrap_email(f"<p>Hey {talent.name}, *{task.title}* is {days} day(s) overdue. Any update?</p>"), f"Reminder: {task.title} is overdue")
+                msg = f"Hey {talent.name}! Quick reminder — *{task.title}* was due {days} day{'s' if days != 1 else ''} ago. How's it going?"
+                if talent.slack_user_id:
+                    await send_slack(talent.slack_user_id, msg)
+                else:
+                    await send_email(talent.email, f"Reminder: {task.title}", _wrap_email(f"<p>{msg}</p>"), msg)
             elif days <= 5:
                 msg = f"Hi {talent.name}, *{task.title}* is {days} days overdue. Can you give me an ETA? If you can't finish, let me know so I can reassign."
                 if talent.slack_user_id:
@@ -752,12 +758,11 @@ def get_talent(tid: int, db: Session = Depends(get_db)):
 
 
 # ══════════════════════════════════════════════
-# NEW: TALENT LEADERBOARD
+# TALENT LEADERBOARD
 # ══════════════════════════════════════════════
 
 @app.get("/api/talent/leaderboard", tags=["Talent"])
 def talent_leaderboard(db: Session = Depends(get_db)):
-    """Ranked talent by performance score (tasks completed * on-time rate * avg rating)."""
     talents = db.query(Talent).filter(Talent.status == "active", Talent.total_tasks_completed > 0).all()
     ranked = []
     for t in talents:
@@ -881,7 +886,6 @@ def list_tasks(cid: int, db: Session = Depends(get_db)):
 
 @app.post("/api/tasks/{tid}/accept", tags=["Tasks"])
 def accept_task(tid: int, db: Session = Depends(get_db)):
-    """Talent accepts a task assignment."""
     task = db.query(Task).filter(Task.id == tid).first()
     if not task: raise HTTPException(404, "Not found")
     if task.assignment:
@@ -894,7 +898,6 @@ def accept_task(tid: int, db: Session = Depends(get_db)):
 
 @app.post("/api/tasks/{tid}/decline", tags=["Tasks"])
 async def decline_task(tid: int, bg: BackgroundTasks, db: Session = Depends(get_db)):
-    """Talent declines — auto-reassign from pool."""
     task = db.query(Task).filter(Task.id == tid).first()
     if not task: raise HTTPException(404, "Not found")
     if task.assignment:
@@ -905,9 +908,7 @@ async def decline_task(tid: int, bg: BackgroundTasks, db: Session = Depends(get_
         task.status = "pending"
         db.commit()
         log_activity(db, "task_declined", f"'{task.title}' declined by {old_talent.name if old_talent else '?'}", task.campaign_id, tid)
-        # Auto-reassign
         bg.add_task(auto_match_all, task.campaign_id)
-        # Notify client
         campaign = db.query(Campaign).filter(Campaign.id == task.campaign_id).first()
         if campaign:
             client = db.query(Client).filter(Client.id == campaign.client_id).first()
@@ -956,7 +957,6 @@ async def review_and_route(tid, url):
                     dash = f"{APP_URL}/talent-dashboard/tasks/{task.id}"
                     await notify_talent(db, tal, f"Revision: {task.title}", revision_email_html(tal.name, task.title, fb, dash), f"Revision: {task.title}\n{fb}", f"Revision: {task.title}", fb, "revision_requested", task.id, camp.id, dash, f"🔄 *Revision*\n*{task.title}*\n{fb}\n<{dash}|Resubmit>")
                     log_activity(db, "revision_requested", f"Revision #{task.revision_count} for '{task.title}'", camp.id, tid, tal.id)
-                    # Quality concern escalation
                     if task.revision_count >= 3 and client:
                         await handle_escalation({"client_id": client.id, "message": f"⚠️ *{task.title}* has had {task.revision_count} revisions (assigned to {tal.name}). Consider reassigning or adjusting the brief.", "urgency": "medium"}, db)
     finally:
@@ -973,7 +973,6 @@ async def approve_task(tid: int, decision: ApprovalDecision, db: Session = Depen
             tal = db.query(Talent).filter(Talent.id == t.assignment.talent_id).first()
             if tal:
                 tal.total_tasks_completed += 1
-                # Update on-time rate
                 if t.due_date and datetime.utcnow() <= t.due_date:
                     tal.on_time_delivery_rate = ((tal.on_time_delivery_rate * (tal.total_tasks_completed - 1)) + 1.0) / tal.total_tasks_completed
                 else:
@@ -1021,12 +1020,11 @@ def get_msgs(rtype: str, rid: int, db: Session = Depends(get_db)):
 
 
 # ══════════════════════════════════════════════
-# NEW: CAMPAIGN HEALTH SCORE
+# CAMPAIGN HEALTH SCORE
 # ══════════════════════════════════════════════
 
 @app.get("/api/campaigns/{cid}/health", tags=["Analytics"])
 def campaign_health(cid: int, db: Session = Depends(get_db)):
-    """AI-calculated campaign health score with breakdown."""
     campaign = db.query(Campaign).filter(Campaign.id == cid).first()
     if not campaign: raise HTTPException(404, "Not found")
     tasks = db.query(Task).filter(Task.campaign_id == cid).all()
@@ -1036,15 +1034,13 @@ def campaign_health(cid: int, db: Session = Depends(get_db)):
     total = len(tasks)
     completed = len([t for t in tasks if t.status == "completed"])
     overdue = len([t for t in tasks if t.status in ("assigned", "in_progress", "pending") and t.due_date and t.due_date < now])
-    in_review = len([t for t in tasks if t.status in ("review", "client_approval")])
-    avg_revisions = sum(t.revision_count for t in tasks) / total if total else 0
+    avg_revisions = sum(t.revision_count for t in tasks) / total
     avg_score = sum(t.ai_review_score or 0 for t in tasks if t.ai_review_score) / max(len([t for t in tasks if t.ai_review_score]), 1)
 
-    # Score components (out of 100)
-    completion_score = (completed / total) * 40  # 40% weight
-    timeline_score = max(0, (1 - overdue / total)) * 30  # 30% weight
-    quality_score = min(avg_score / 10, 1) * 20 if avg_score else 10  # 20% weight
-    revision_score = max(0, (1 - avg_revisions / 3)) * 10  # 10% weight
+    completion_score = (completed / total) * 40
+    timeline_score = max(0, (1 - overdue / total)) * 30
+    quality_score = min(avg_score / 10, 1) * 20 if avg_score else 10
+    revision_score = max(0, (1 - avg_revisions / 3)) * 10
 
     health = round(completion_score + timeline_score + quality_score + revision_score)
     grade = "A" if health >= 85 else "B" if health >= 70 else "C" if health >= 55 else "D" if health >= 40 else "F"
@@ -1063,29 +1059,26 @@ def campaign_health(cid: int, db: Session = Depends(get_db)):
 
 
 # ══════════════════════════════════════════════
-# NEW: ACTIVITY FEED
+# ACTIVITY FEED
 # ══════════════════════════════════════════════
 
 @app.get("/api/campaigns/{cid}/activity", tags=["Analytics"])
 def campaign_activity(cid: int, limit: int = 30, db: Session = Depends(get_db)):
-    """Timeline of all campaign events."""
     events = db.query(ActivityEvent).filter(ActivityEvent.campaign_id == cid).order_by(ActivityEvent.created_at.desc()).limit(limit).all()
-    return [{"id": e.id, "type": e.event_type, "description": e.description, "created_at": e.created_at.isoformat(), "metadata": e.metadata} for e in events]
+    return [{"id": e.id, "type": e.event_type, "description": e.description, "created_at": e.created_at.isoformat(), "metadata": e.event_metadata} for e in events]
 
 @app.get("/api/activity/recent", tags=["Analytics"])
 def recent_activity(limit: int = 30, db: Session = Depends(get_db)):
-    """Recent activity across all campaigns."""
     events = db.query(ActivityEvent).order_by(ActivityEvent.created_at.desc()).limit(limit).all()
     return [{"id": e.id, "type": e.event_type, "description": e.description, "campaign_id": e.campaign_id, "created_at": e.created_at.isoformat()} for e in events]
 
 
 # ══════════════════════════════════════════════
-# NEW: ANALYTICS DASHBOARD
+# ANALYTICS DASHBOARD
 # ══════════════════════════════════════════════
 
 @app.get("/api/analytics/overview", tags=["Analytics"])
 def analytics_overview(db: Session = Depends(get_db)):
-    """Platform-wide analytics."""
     now = datetime.utcnow()
     total_campaigns = db.query(Campaign).count()
     active_campaigns = db.query(Campaign).filter(Campaign.status.in_(["draft", "active"])).count()
@@ -1093,12 +1086,8 @@ def analytics_overview(db: Session = Depends(get_db)):
     completed_tasks = db.query(Task).filter(Task.status == "completed").count()
     active_talent = db.query(Talent).filter(Talent.status == "active").count()
     total_clients = db.query(Client).count()
-
-    # Tasks completed this week
     week_ago = now - timedelta(days=7)
     tasks_this_week = db.query(Task).filter(Task.status == "completed", Task.updated_at >= week_ago).count()
-
-    # Avg quality score
     scored = db.query(func.avg(Task.ai_review_score)).filter(Task.ai_review_score != None).scalar()
 
     return {
@@ -1162,7 +1151,7 @@ async def manual_standup():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "fleetwork", "version": "0.5.0"}
+    return {"status": "ok", "service": "fleetwork", "version": "0.5.1"}
 
 if __name__ == "__main__":
     import uvicorn
