@@ -1,5 +1,5 @@
 """
-GrowthTeam Backend — AI-Managed Marketing Agency Platform
+Fleetwork Backend — AI-Managed Marketing Agency Platform
 ==========================================================
 Core systems:
 1. Talent Database & Matching Engine
@@ -7,7 +7,7 @@ Core systems:
 3. Slack Approval Bot (client only sees approve/reject decisions)
 4. Campaign Orchestrator (scheduling, status tracking, deliverables)
 
-Stack: FastAPI + SQLAlchemy + SQLite (swap to Postgres in production)
+Stack: FastAPI + SQLAlchemy + PostgreSQL
 AI: Anthropic Claude API for all intelligence
 Comms: Slack SDK for client approvals, email for talent coordination
 """
@@ -50,8 +50,8 @@ class TaskStatus(str, Enum):
     pending = "pending"
     assigned = "assigned"
     in_progress = "in_progress"
-    review = "review"           # talent submitted, awaiting AI review
-    client_approval = "client_approval"  # AI approved, needs client sign-off
+    review = "review"
+    client_approval = "client_approval"
     approved = "approved"
     revision_requested = "revision_requested"
     completed = "completed"
@@ -75,41 +75,36 @@ class Talent(Base):
     email = Column(String(200), unique=True, nullable=False)
     phone = Column(String(50), nullable=True)
 
-    # Professional info
-    primary_role = Column(String(100), nullable=False)       # e.g. "UGC Creator"
-    channels = Column(JSON, default=list)                     # ["TikTok", "Instagram"]
-    skills = Column(JSON, default=list)                       # ["short-form video", "storytelling"]
+    primary_role = Column(String(100), nullable=False)
+    channels = Column(JSON, default=list)
+    skills = Column(JSON, default=list)
     portfolio_url = Column(String(500), nullable=True)
     bio = Column(Text, nullable=True)
 
-    # Rates & availability
-    hourly_rate = Column(Float, nullable=True)                # USD
-    per_deliverable_rate = Column(Float, nullable=True)       # USD per video/post/article
-    rate_notes = Column(String(500), nullable=True)           # e.g. "$50-80/video"
+    hourly_rate = Column(Float, nullable=True)
+    per_deliverable_rate = Column(Float, nullable=True)
+    rate_notes = Column(String(500), nullable=True)
     availability_hours_per_week = Column(Integer, default=20)
     timezone = Column(String(50), default="EST")
 
-    # Performance tracking
     avg_rating = Column(Float, default=0.0)
     total_tasks_completed = Column(Integer, default=0)
-    on_time_delivery_rate = Column(Float, default=1.0)        # 0.0 - 1.0
+    on_time_delivery_rate = Column(Float, default=1.0)
 
-    # Status
     status = Column(String(20), default="active")
-    slack_user_id = Column(String(50), nullable=True)         # for Slack DM communication
-    preferred_contact = Column(String(50), default="email")   # email, slack, phone
+    slack_user_id = Column(String(50), nullable=True)
+    preferred_contact = Column(String(50), default="email")
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
     assignments = relationship("TaskAssignment", back_populates="talent")
 
 
 # ── Client / Business ──
 
 class Client(Base):
-    """A business using GrowthTeam."""
+    """A business using Fleetwork."""
     __tablename__ = "clients"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -117,17 +112,15 @@ class Client(Base):
     website_url = Column(String(500), nullable=False)
     contact_name = Column(String(200), nullable=False)
     contact_email = Column(String(200), nullable=False)
-    slack_channel_id = Column(String(50), nullable=True)      # their approval channel
+    slack_channel_id = Column(String(50), nullable=True)
     slack_user_id = Column(String(50), nullable=True)
 
-    # AI-generated analysis (stored from initial scan)
-    business_analysis = Column(JSON, nullable=True)           # full strategy JSON
+    business_analysis = Column(JSON, nullable=True)
     industry = Column(String(100), nullable=True)
     target_audience = Column(Text, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # Relationships
     campaigns = relationship("Campaign", back_populates="client")
 
 
@@ -140,7 +133,7 @@ class Campaign(Base):
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
     name = Column(String(200), nullable=False)
-    strategy = Column(JSON, nullable=False)                   # full strategy from AI
+    strategy = Column(JSON, nullable=False)
     status = Column(String(20), default="draft")
     monthly_budget = Column(Float, nullable=True)
 
@@ -148,7 +141,6 @@ class Campaign(Base):
     end_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # Relationships
     client = relationship("Client", back_populates="campaigns")
     tasks = relationship("Task", back_populates="campaign")
 
@@ -156,40 +148,36 @@ class Campaign(Base):
 # ── Task ──
 
 class Task(Base):
-    """An individual task within a campaign (e.g., 'Create 3 TikTok videos')."""
+    """An individual task within a campaign."""
     __tablename__ = "tasks"
 
     id = Column(Integer, primary_key=True, index=True)
     campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False)
     title = Column(String(300), nullable=False)
     description = Column(Text, nullable=False)
-    channel = Column(String(50), nullable=True)               # TikTok, Instagram, etc.
-    required_role = Column(String(100), nullable=False)        # UGC Creator, Media Buyer, etc.
+    channel = Column(String(50), nullable=True)
+    required_role = Column(String(100), nullable=False)
     required_skills = Column(JSON, default=list)
 
-    # Scheduling
     due_date = Column(DateTime, nullable=True)
-    publish_date = Column(DateTime, nullable=True)            # when content should go live
-    recurrence = Column(String(50), nullable=True)            # weekly, biweekly, monthly, one-time
+    publish_date = Column(DateTime, nullable=True)
+    recurrence = Column(String(50), nullable=True)
 
-    # Status
     status = Column(String(30), default="pending")
-    priority = Column(Integer, default=2)                     # 1=urgent, 2=normal, 3=low
+    priority = Column(Integer, default=2)
 
-    # Deliverables
-    deliverable_url = Column(String(500), nullable=True)      # link to submitted work
-    ai_review_notes = Column(Text, nullable=True)             # AI's review of the deliverable
+    deliverable_url = Column(String(500), nullable=True)
+    ai_review_notes = Column(Text, nullable=True)
     client_feedback = Column(Text, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
     campaign = relationship("Campaign", back_populates="tasks")
     assignment = relationship("TaskAssignment", back_populates="task", uselist=False)
 
 
-# ── Task Assignment (links talent to tasks) ──
+# ── Task Assignment ──
 
 class TaskAssignment(Base):
     """Links a talent to a specific task."""
@@ -199,27 +187,26 @@ class TaskAssignment(Base):
     task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False)
     talent_id = Column(Integer, ForeignKey("talents.id"), nullable=False)
     assigned_at = Column(DateTime, default=datetime.utcnow)
-    accepted = Column(Boolean, nullable=True)                 # None=pending, True=accepted, False=declined
+    accepted = Column(Boolean, nullable=True)
     responded_at = Column(DateTime, nullable=True)
     payment_amount = Column(Float, nullable=True)
-    payment_status = Column(String(20), default="pending")    # pending, paid
+    payment_status = Column(String(20), default="pending")
 
-    # Relationships
     task = relationship("Task", back_populates="assignment")
     talent = relationship("Talent", back_populates="assignments")
 
 
-# ── Message Log (all AI-managed communications) ──
+# ── Message Log ──
 
 class MessageLog(Base):
     """Tracks all messages sent by the AI project manager."""
     __tablename__ = "message_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    direction = Column(String(20), nullable=False)            # outbound_talent, outbound_client, inbound
-    recipient_type = Column(String(20), nullable=False)       # talent, client
+    direction = Column(String(20), nullable=False)
+    recipient_type = Column(String(20), nullable=False)
     recipient_id = Column(Integer, nullable=False)
-    channel = Column(String(20), nullable=False)              # slack, email
+    channel = Column(String(20), nullable=False)
     subject = Column(String(300), nullable=True)
     body = Column(Text, nullable=False)
     related_task_id = Column(Integer, nullable=True)
@@ -235,9 +222,9 @@ Base.metadata.create_all(bind=engine)
 # ──────────────────────────────────────────────
 
 app = FastAPI(
-    title="GrowthTeam API",
+    title="Fleetwork API",
     description="AI-managed marketing agency backend",
-    version="0.1.0",
+    version="0.2.0",
 )
 
 app.add_middleware(
@@ -338,7 +325,7 @@ async def call_claude(system_prompt: str, user_message: str, max_tokens: int = 4
 
 async def ai_analyze_business(url: str, goals: str = None) -> dict:
     """Analyze a business URL and generate full marketing strategy."""
-    system = """You are GrowthTeam's AI strategist. Analyze the business URL and generate a 
+    system = """You are Fleetwork's AI strategist. Analyze the business URL and generate a 
 comprehensive marketing strategy. Respond ONLY with valid JSON matching this schema:
 {
     "business_name": "string",
@@ -371,9 +358,57 @@ comprehensive marketing strategy. Respond ONLY with valid JSON matching this sch
     return json.loads(clean)
 
 
+async def ai_break_down_strategy(strategy: dict, budget: str = None, team_size: str = None) -> list:
+    """Take a strategy and break it into specific weekly tasks for 4 weeks."""
+    system = """You are Fleetwork's AI project manager. Take a marketing strategy and break it 
+down into specific, actionable weekly tasks for the first 4 weeks.
+
+Each task should be a concrete deliverable that one person can complete.
+
+Respond ONLY with valid JSON matching this schema:
+{
+    "tasks": [
+        {
+            "title": "string (specific deliverable name)",
+            "description": "string (detailed specs: what to create, dimensions, length, tone, references)",
+            "channel": "string (TikTok, Instagram, YouTube, LinkedIn, SEO, Email, Paid Ads)",
+            "required_role": "string (UGC Creator, Video Editor, Graphic Designer, Copywriter, Media Buyer, SEO Specialist, Social Media Manager, Email Marketer)",
+            "required_skills": ["string"],
+            "week": 1,
+            "priority": 1,
+            "estimated_hours": 2,
+            "deliverable_format": "string (e.g. 'MP4 video 9:16, 30-60 seconds' or '1080x1080 PNG' or '1500 word blog post')",
+            "recurrence": "one-time" or "weekly" or "biweekly"
+        }
+    ]
+}
+
+Rules:
+- Create 3-6 tasks per week (12-24 total across 4 weeks)
+- Week 1 should be foundational: brand assets, first content pieces, account setup
+- Week 2-3 ramp up content production
+- Week 4 includes analysis and optimization tasks
+- Each task title should be specific, not vague (e.g. "3 TikTok product showcase videos (30s each)" not "Create TikTok content")
+- Description should be detailed enough for a freelancer to start working immediately
+- Priority: 1=critical, 2=important, 3=nice-to-have
+- Match tasks to the strategy's recommended channels and team roles
+- Stay within budget context if provided"""
+
+    user_msg = f"Break this strategy into weekly tasks:\n\nStrategy: {json.dumps(strategy)}"
+    if budget:
+        user_msg += f"\nBudget context: {budget}"
+    if team_size:
+        user_msg += f"\nTeam size: {team_size}"
+
+    text = await call_claude(system, user_msg, max_tokens=4000)
+    clean = text.replace("```json", "").replace("```", "").strip()
+    result = json.loads(clean)
+    return result["tasks"]
+
+
 async def ai_match_talent(task: dict, available_talent: list[dict]) -> list[dict]:
     """Use AI to rank and match the best talent for a specific task."""
-    system = """You are GrowthTeam's talent matching engine. Given a task and a list of 
+    system = """You are Fleetwork's talent matching engine. Given a task and a list of 
 available talent, rank the top 3 best matches. Consider: role match, channel expertise, 
 skills overlap, availability, rating, and rate fit.
 
@@ -392,7 +427,7 @@ Return top 3 matches ranked by fit."""
 
 async def ai_generate_brief(task: dict, talent: dict, client: dict) -> str:
     """Generate a professional brief to send to the assigned talent."""
-    system = """You are GrowthTeam's AI project manager. Write a clear, professional task 
+    system = """You are Fleetwork's AI project manager. Write a clear, professional task 
 brief for a freelance marketing specialist. Include: what to create, brand context, 
 tone/style guidance, deliverable specs, and deadline. Keep it concise but thorough.
 Respond with just the brief text, no JSON."""
@@ -410,7 +445,7 @@ Target audience: {client.get('target_audience', 'N/A')}"""
 
 async def ai_review_deliverable(task: dict, submission_url: str, client_context: dict) -> dict:
     """AI reviews a submitted deliverable before sending to client for approval."""
-    system = """You are GrowthTeam's AI quality reviewer. Review the submitted deliverable 
+    system = """You are Fleetwork's AI quality reviewer. Review the submitted deliverable 
 against the task requirements. Provide a quality assessment.
 
 Respond ONLY with JSON:
@@ -434,7 +469,7 @@ Client context: {json.dumps(client_context)}"""
 
 async def ai_compose_slack_approval(task: dict, review: dict, talent_name: str) -> dict:
     """Compose a Slack message for client approval."""
-    system = """You are GrowthTeam's AI assistant composing a Slack message for the client.
+    system = """You are Fleetwork's AI assistant composing a Slack message for the client.
 Keep it brief and actionable. The client should be able to approve or request changes quickly.
 Respond ONLY with JSON: {"text": "string", "blocks": [slack block kit elements]}"""
 
@@ -470,7 +505,6 @@ def bulk_import_talent(data: TalentBulkImport, db: Session = Depends(get_db)):
     created = []
     skipped = []
     for t in data.talents:
-        # Skip if email already exists
         existing = db.query(Talent).filter(Talent.email == t.email).first()
         if existing:
             skipped.append(t.email)
@@ -499,7 +533,6 @@ def list_talent(
         query = query.filter(Talent.primary_role.ilike(f"%{role}%"))
     talents = query.all()
 
-    # Filter by channel if specified (JSON field)
     if channel:
         talents = [t for t in talents if channel.lower() in [c.lower() for c in (t.channels or [])]]
 
@@ -552,15 +585,10 @@ async def generate_campaign(
     db: Session = Depends(get_db),
 ):
     """
-    The core flow:
-    1. AI analyzes the URL
-    2. Generates strategy
-    3. Creates campaign with tasks
-    4. Auto-matches talent to each task
-    5. Sends briefs to talent
-    6. Notifies client via Slack that campaign is being assembled
+    Basic flow: URL → strategy → campaign + role-based tasks → talent matching.
+    For the full experience with granular weekly tasks, use /api/campaigns/generate-full instead.
     """
-   # Step 1-2: AI analysis
+    # Step 1-2: AI analysis
     try:
         strategy = await ai_analyze_business(request.url, request.goals)
     except Exception as e:
@@ -585,7 +613,7 @@ async def generate_campaign(
         db.commit()
         db.refresh(client)
 
-    # Step 3: Create campaign
+    # Create campaign
     campaign = Campaign(
         client_id=client.id,
         name=f"{strategy['business_name']} Growth Campaign",
@@ -596,10 +624,9 @@ async def generate_campaign(
     db.commit()
     db.refresh(campaign)
 
-    # Step 4: Create tasks from strategy
+    # Create tasks from strategy team roles
     tasks_created = []
     for role in strategy.get("team_roles", []):
-        # Create initial tasks based on content calendar for this role's channel
         calendar_items = [
             item for item in strategy.get("content_calendar", [])
             if item.get("channel", "").lower() in role.get("channel", "").lower()
@@ -628,10 +655,8 @@ async def generate_campaign(
         db.refresh(task)
         tasks_created.append({"id": task.id, "title": task.title, "role": role["title"]})
 
-    # Step 5: Queue background matching (happens async)
-    background_tasks.add_task(
-        auto_match_and_assign_all_tasks, campaign.id
-    )
+    # Queue background matching
+    background_tasks.add_task(auto_match_and_assign_all_tasks, campaign.id)
 
     return {
         "campaign_id": campaign.id,
@@ -641,6 +666,212 @@ async def generate_campaign(
         "status": "Campaign created. AI is now matching talent and will send briefs automatically.",
     }
 
+
+# ──────────────────────────────────────────────
+# Task Breakdown & Full Campaign Generation
+# ──────────────────────────────────────────────
+
+@app.post("/api/campaigns/{campaign_id}/breakdown", tags=["Campaigns"])
+async def break_down_campaign(
+    campaign_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """
+    Takes an existing campaign's strategy and breaks it into
+    specific weekly tasks (12-24 tasks across 4 weeks).
+    Replaces any existing pending tasks, then kicks off talent matching.
+    """
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    strategy = campaign.strategy
+    if not strategy:
+        raise HTTPException(status_code=400, detail="Campaign has no strategy. Generate one first.")
+
+    budget_context = strategy.get("estimated_monthly_budget")
+
+    try:
+        task_list = await ai_break_down_strategy(strategy, budget_context)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Task breakdown failed: {str(e)}")
+
+    # Clear existing pending tasks (don't touch assigned/in-progress ones)
+    db.query(Task).filter(
+        Task.campaign_id == campaign_id,
+        Task.status == "pending",
+    ).delete()
+    db.commit()
+
+    # Create new tasks from AI breakdown
+    created_tasks = []
+    for t in task_list:
+        week_num = t.get("week", 1)
+        due_date = datetime.utcnow() + timedelta(weeks=week_num)
+
+        task = Task(
+            campaign_id=campaign_id,
+            title=t["title"],
+            description=t["description"],
+            channel=t.get("channel"),
+            required_role=t["required_role"],
+            required_skills=t.get("required_skills", []),
+            status="pending",
+            priority=t.get("priority", 2),
+            due_date=due_date,
+            recurrence=t.get("recurrence", "one-time"),
+        )
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+
+        created_tasks.append({
+            "id": task.id,
+            "title": task.title,
+            "channel": task.channel,
+            "required_role": task.required_role,
+            "week": week_num,
+            "priority": t.get("priority", 2),
+            "estimated_hours": t.get("estimated_hours"),
+            "deliverable_format": t.get("deliverable_format"),
+            "recurrence": t.get("recurrence", "one-time"),
+            "due_date": due_date.isoformat(),
+        })
+
+    background_tasks.add_task(auto_match_and_assign_all_tasks, campaign_id)
+
+    return {
+        "campaign_id": campaign_id,
+        "total_tasks": len(created_tasks),
+        "weeks_covered": 4,
+        "tasks_by_week": {
+            f"week_{w}": [t for t in created_tasks if t["week"] == w]
+            for w in range(1, 5)
+        },
+        "status": "Tasks created. AI is now matching talent to each task.",
+    }
+
+
+@app.post("/api/campaigns/generate-full", tags=["Campaigns"])
+async def generate_full_campaign(
+    request: StrategyRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """
+    The complete flow in one call:
+    1. AI analyzes business URL → generates strategy
+    2. AI breaks strategy into weekly tasks (4 weeks, 12-24 tasks)
+    3. Kicks off talent matching for all tasks
+
+    This is what the frontend should call for the full experience.
+    """
+    # Step 1: Generate strategy
+    try:
+        strategy = await ai_analyze_business(request.url, request.goals)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Strategy generation failed: {str(e)}")
+
+    # Find or create client
+    client = db.query(Client).filter(Client.website_url == request.url).first()
+    if not client:
+        domain = request.url.replace("https://", "").replace("http://", "").split("/")[0]
+        client = Client(
+            business_name=strategy.get("business_name", domain),
+            website_url=request.url,
+            contact_name="",
+            contact_email="",
+            business_analysis=strategy,
+            industry=strategy.get("industry"),
+            target_audience=strategy.get("target_audience"),
+        )
+        db.add(client)
+        db.commit()
+        db.refresh(client)
+
+    # Create campaign
+    campaign = Campaign(
+        client_id=client.id,
+        name=f"{strategy['business_name']} Growth Campaign",
+        strategy=strategy,
+        status="draft",
+    )
+    db.add(campaign)
+    db.commit()
+    db.refresh(campaign)
+
+    # Step 2: Break into weekly tasks
+    budget_context = strategy.get("estimated_monthly_budget")
+    try:
+        task_list = await ai_break_down_strategy(strategy, budget_context)
+    except Exception as e:
+        return {
+            "campaign_id": campaign.id,
+            "client_id": client.id,
+            "strategy": strategy,
+            "tasks_by_week": {},
+            "total_tasks": 0,
+            "status": "Strategy generated but task breakdown failed. Call /api/campaigns/{id}/breakdown to retry.",
+        }
+
+    # Save tasks
+    created_tasks = []
+    for t in task_list:
+        week_num = t.get("week", 1)
+        due_date = datetime.utcnow() + timedelta(weeks=week_num)
+
+        task = Task(
+            campaign_id=campaign.id,
+            title=t["title"],
+            description=t["description"],
+            channel=t.get("channel"),
+            required_role=t["required_role"],
+            required_skills=t.get("required_skills", []),
+            status="pending",
+            priority=t.get("priority", 2),
+            due_date=due_date,
+            recurrence=t.get("recurrence", "one-time"),
+        )
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+
+        created_tasks.append({
+            "id": task.id,
+            "title": task.title,
+            "channel": task.channel,
+            "required_role": task.required_role,
+            "week": week_num,
+            "priority": t.get("priority", 2),
+            "estimated_hours": t.get("estimated_hours"),
+            "deliverable_format": t.get("deliverable_format"),
+            "due_date": due_date.isoformat(),
+        })
+
+    # Step 3: Match talent in background
+    background_tasks.add_task(auto_match_and_assign_all_tasks, campaign.id)
+
+    return {
+        "campaign_id": campaign.id,
+        "client_id": client.id,
+        "strategy": strategy,
+        "tasks_by_week": {
+            f"week_{w}": [t for t in created_tasks if t["week"] == w]
+            for w in range(1, 5)
+        },
+        "total_tasks": len(created_tasks),
+        "status": "Full campaign generated. Strategy created, tasks broken down, talent matching in progress.",
+    }
+
+
+# ──────────────────────────────────────────────
+# Background: Auto-match talent to tasks
+# ──────────────────────────────────────────────
 
 async def auto_match_and_assign_all_tasks(campaign_id: int):
     """Background job: match talent to all pending tasks in a campaign."""
@@ -652,20 +883,17 @@ async def auto_match_and_assign_all_tasks(campaign_id: int):
         ).all()
 
         for task in tasks:
-            # Get available talent matching the required role
             available = db.query(Talent).filter(
                 Talent.status == "active",
                 Talent.primary_role.ilike(f"%{task.required_role.split()[0]}%"),
             ).all()
 
             if not available:
-                # Broaden search if no exact match
                 available = db.query(Talent).filter(Talent.status == "active").all()
 
             if not available:
                 continue
 
-            # Prepare data for AI matching
             task_data = {
                 "title": task.title,
                 "description": task.description,
@@ -686,10 +914,9 @@ async def auto_match_and_assign_all_tasks(campaign_id: int):
                     "total_tasks_completed": t.total_tasks_completed,
                     "availability_hours_per_week": t.availability_hours_per_week,
                 }
-                for t in available[:20]  # limit to top 20 to stay within context
+                for t in available[:20]
             ]
 
-            # AI matches best talent
             try:
                 matches = await ai_match_talent(task_data, talent_data)
                 if matches:
@@ -697,14 +924,11 @@ async def auto_match_and_assign_all_tasks(campaign_id: int):
                     assignment = TaskAssignment(
                         task_id=task.id,
                         talent_id=best["talent_id"],
-                        payment_amount=None,  # to be negotiated
+                        payment_amount=None,
                     )
                     db.add(assignment)
                     task.status = "assigned"
                     db.commit()
-
-                    # TODO: Send brief to talent via email/Slack
-                    # await send_talent_brief(task, talent, client)
             except Exception as e:
                 print(f"Matching error for task {task.id}: {e}")
                 continue
@@ -760,14 +984,13 @@ async def submit_deliverable(
     task.status = "review"
     db.commit()
 
-    # Queue AI review
     background_tasks.add_task(ai_review_and_route, task_id, submission.deliverable_url)
 
     return {"status": "Submitted. AI is reviewing your deliverable."}
 
 
 async def ai_review_and_route(task_id: int, deliverable_url: str):
-    """Background: AI reviews deliverable and either sends to client or back to talent."""
+    """Background: AI reviews deliverable and routes to client or back to talent."""
     db = SessionLocal()
     try:
         task = db.query(Task).filter(Task.id == task_id).first()
@@ -789,25 +1012,15 @@ async def ai_review_and_route(task_id: int, deliverable_url: str):
             "target_audience": client.target_audience,
         }
 
-        # AI reviews
         review = await ai_review_deliverable(task_data, deliverable_url, client_context)
         task.ai_review_notes = json.dumps(review)
 
         if review.get("recommendation") == "approve":
-            # Passes AI review → send to client for approval
             task.status = "client_approval"
             db.commit()
-
-            # TODO: Send Slack message to client
-            # slack_msg = await ai_compose_slack_approval(task_data, review, talent_name)
-            # await send_slack_message(client.slack_channel_id, slack_msg)
         else:
-            # Needs revision → send feedback to talent
             task.status = "revision_requested"
             db.commit()
-
-            # TODO: Send feedback to talent via email/Slack
-            # await send_talent_feedback(assignment.talent_id, review["feedback_for_talent"])
 
     finally:
         db.close()
@@ -828,38 +1041,31 @@ def client_approve_task(
         task.status = "completed"
         task.client_feedback = decision.feedback
 
-        # Update talent stats
         if task.assignment:
             talent = db.query(Talent).filter(Talent.id == task.assignment.talent_id).first()
             if talent:
                 talent.total_tasks_completed += 1
-                task.assignment.payment_status = "paid"  # trigger payment flow
+                task.assignment.payment_status = "paid"
     else:
         task.status = "revision_requested"
         task.client_feedback = decision.feedback
-        # TODO: Forward revision feedback to talent
 
     db.commit()
     return {"status": "approved" if decision.approved else "revision_requested"}
 
 
 # ──────────────────────────────────────────────
-# API Routes — Slack Integration Endpoints
+# API Routes — Slack Integration
 # ──────────────────────────────────────────────
 
 @app.post("/api/slack/interactions", tags=["Slack"])
 async def handle_slack_interaction(payload: dict):
-    """
-    Handles Slack interactive messages (button clicks for approve/reject).
-    Slack sends a POST here when a client clicks a button in the approval message.
-    """
-    # Parse Slack's interaction payload
+    """Handles Slack interactive messages (button clicks for approve/reject)."""
     action = payload.get("actions", [{}])[0]
     action_id = action.get("action_id", "")
     task_id = int(action.get("value", 0))
 
     if "approve" in action_id:
-        # Client approved via Slack
         db = SessionLocal()
         task = db.query(Task).filter(Task.id == task_id).first()
         if task:
@@ -939,7 +1145,7 @@ def campaign_dashboard(campaign_id: int, db: Session = Depends(get_db)):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "growthteam-backend", "version": "0.1.0"}
+    return {"status": "ok", "service": "fleetwork-backend", "version": "0.2.0"}
 
 
 if __name__ == "__main__":
